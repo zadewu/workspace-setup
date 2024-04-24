@@ -1,0 +1,117 @@
+- name: Check private ssh key exists
+  stat:
+    path: "{{ private_key_location }}"
+  register: private_key_info
+
+- name: Check public ssh key exists
+  stat:
+    path: "{{ public_key_location }}"
+  register: public_key_info
+
+- name: Verify SSH Key exists
+  fail:
+    msg: "SSH KeyPair does not exist"
+  when: private_key_info.stat.exists == false or public_key_info.stat.exists == false
+
+- name: Look for GitHub Cli Binary
+  stat:
+    path: "{{ role_path }}/files/bin/{{ github_cli_file_type }}"
+  register: binary_file_info
+
+- name: Download GitHub Cli
+  ansible.builtin.get_url:
+    url: https://github.com/cli/cli/releases/download/{{ github_cli_version }}/{{ github_cli_file_type }}
+    checksum: sha256:https://github.com/cli/cli/releases/download/v2.48.0/{{ github_cli_checksum_filename }}
+    dest: "{{ role_path }}/files/bin/{{ github_cli_file_type }}"
+    mode: 0755
+  when: binary_file_info.stat.exists == false
+  run_once: true
+
+- name: Verify GH installed
+  command: which gh
+  register: gh_installed
+  check_mode: false
+  changed_when: false
+  failed_when: false
+
+- name: Install GitHub Cli
+  become: true
+  become_user: root
+  command: dpkg -i "{{ role_path }}/files/bin/{{ github_cli_file_type }}"
+  when: gh_installed.rc not in [ 0 ]
+
+- name: Logout all current session
+  command: gh auth logout
+  failed_when: false
+  check_mode: false
+  changed_when: false
+
+- name: Configure authentication for GitHub Cli
+  # Currently do not know why cannot login directly via this. Therefore move to a script to login
+  shell:
+    cmd: gh auth login --git-protocol ssh --hostname github.com --with-token < "{{ role_path }}/files/.zad_secrets"
+  # script: "{{ role_path }}/files/gh_login.sh {{role_path}}/files/.zad_secrets"
+  register: script_output
+
+- name: Verify login status
+  command: gh auth status
+  register: gh_auth_status
+  changed_when: false
+  failed_when: gh_auth_status.rc not in [0]
+
+- name: Verify SSH Key added via ansible
+  # command: gh ssh-key list | awk '{ print $1 }' | grep "{{ github_cli_ssh_key_title }}"
+  shell:
+    cmd: gh ssh-key list | awk '{ print $1 }'
+  register: gh_ssh_key_info
+  changed_when: false
+  failed_when: false
+
+- name: Debug
+  debug:
+    var: gh_ssh_key_info
+
+- name: Add SSH key account
+  shell: gh ssh-key add "{{ public_key_location }}" --title "{{ github_cli_ssh_key_title }}" --type authentication
+
+# - name: Remove exist repository
+#   shell: rm -rf "{{ role_path }}/{{ github_cli_ssh_repo_localpath }}"
+
+- name: Prepare commit for public key
+  vars:
+    temp_repo_path: "{{ role_path }}/{{ github_cli_ssh_repo_localpath }}"
+    branch_name: "{{ now(utc=true,fmt='%Y-%m-%d__%H-%M-%S') }}--new-keys-for-{{ user_email }}"
+    commit_file_name: huy.phan.lenovo
+  block:
+    - name: Remove exist repository
+      shell: rm -rf "{{ temp_repo_path }}"
+
+    - name: Clone repo
+      shell: gh repo clone {{ github_cli_ssh_repo }} "{{ temp_repo_path }}"
+
+    # This step for multiple hostname setup
+    - name: Modify remote origin
+      shell: git -C "{{ temp_repo_path }}" remote set-url origin git@github-zadewu:zadewu/os-notes.git
+
+    - name: Create new branch
+      shell: git -C "{{ temp_repo_path }}" checkout -b "{{ branch_name }}"
+
+    - name: Copy public key content
+      copy:
+        content: "{{ lookup('file', public_key_location) }}"
+        dest: "{{ temp_repo_path }}/{{ commit_file_name }}"
+        mode: 0644
+
+    - name: Commit changes
+      shell: git -C "{{ temp_repo_path }}" add "{{ commit_file_name }}"
+
+    - name: Commit changes
+      shell: git -C "{{ temp_repo_path }}" commit -m "Update key"
+
+    - name: Push changes to remote
+      shell: git -C "{{ temp_repo_path }}" push --set-upstream origin "{{ branch_name }}"
+
+    - name: Create PR
+      shell:
+        chdir: "{{ temp_repo_path }}"
+        cmd: gh pr create --fill

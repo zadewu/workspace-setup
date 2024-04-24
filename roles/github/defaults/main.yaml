@@ -1,0 +1,7 @@
+github_cli_version: v2.48.0
+github_cli_file_type: gh_2.48.0_linux_amd64.deb
+github_cli_checksum_filename: gh_2.48.0_checksums.txt
+github_cli_ssh_key_title: ssh_key_added_via_ansible
+github_cli_ssh_repo: zadewu/os-notes
+# github_cli_ssh_repo: mesoneer-ag/ssh-public-keys
+github_cli_ssh_repo_localpath: files/tmp_repo

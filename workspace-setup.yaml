@@ -1,0 +1,34 @@
+- name: Install GitHub Cli
+  hosts: localhost
+  roles:
+    - github
+# - name: Install all commands
+#   hosts: localhost
+#   gather_facts: false
+#   become: true
+#   tags:
+#     - commands
+#   vars:
+#     user: huyphan
+#     apt_repositories:
+#       # Fish shell repository
+#       - ppa:fish-shell/release-3
+#   # pre_tasks:
+#   #   - name: Ensure ask-become-pass is enable
+#   #     shell: id
+#   #     become: True
+#   tasks:
+#     - name: Add repositories
+#       apt_repository:
+#         repo: "{{ item }}"
+#         state: present
+#       loop: "{{ apt_repositories }}"
+#     - name: Install all commands
+#       apt:
+#         pkg:
+#           - git
+#           - tmux
+#           - git-lfs
+#           - fish
+#           # Find a way to install LazyVim
+#           - neovim

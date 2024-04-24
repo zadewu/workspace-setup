@@ -1,0 +1,6 @@
+# private_key_location: ~/.ssh/id_ed25519
+# public_key_location: ~/.ssh/id_ed25519.pub
+private_key_location: /home/huyphan/.ssh/test_zad_rsa
+public_key_location: /home/huyphan/.ssh/test_zad_rsa.pub
+user_name: "Huy Phan"
+user_email: "huy.phan@mesoneer.io"
